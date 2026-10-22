@@ -1,0 +1,92 @@
+<?php
+
+function config() {
+    return array(
+        'mode' => array(
+            'index.php' => 'dev',
+            'compile.php' => 'dev',
+        ),
+        'env' => array(
+            'dev' => array(
+                // Environment Settings
+                'DIR_WEB' => 'web/', // Directory for web access (e.g., public folder)
+                'URL_WEB' => '/', // URL path for web access
+                // Error Settings
+                'ERROR_TEMPLATES' => array(
+                    'text/plain' => 'res/uc/view/text.plain.php',
+                    'text/html' => 'res/uc/view/text.html.php',
+                    'application/json' => 'res/uc/view/application.json.php',
+                ),
+                'ERROR_NON_FATAL' => E_NOTICE | E_DEPRECATED | E_USER_NOTICE | E_USER_DEPRECATED, // set non fatal, it only logs (if log error is enabled)
+                'ERROR_LOG_FILE' => 'error', // Error log file
+                'ERROR_MAX_LENGTH' => 4096, // Error string max length
+                'SHOW_ERRORS' => 1, // Enable (1) or disable (0) detailed error messages
+                'LOG_ERRORS' => 1, // Enable (1) or disable (0) error logging
+                // Routing Configuration
+                'ROUTE_REWRITE' => 1, // Enable or disable URL rewriting (1: Yes, 0: No).
+                // If enabled, routing is handled via clean URLs (e.g., /home),
+                // If not enabled, routing is handles via query parameter (e.g., ?route=/home),
+                /*
+                 * Web Server Configuration for URL Rewriting:
+                 *
+                 * Apache (.htaccess):
+                 *     RewriteEngine On
+                 *     RewriteBase /
+                 *     RewriteCond %{REQUEST_FILENAME} !-f
+                 *     RewriteCond %{REQUEST_FILENAME} !-d
+                 *     RewriteRule ^(.*)$ index.php [QSA,L]
+                 *
+                 * Nginx:
+                 *     location / {
+                 *         try_files $uri $uri/ /index.php?$query_string;
+                 *     }
+                 */
+                // Logging Configuration
+                'DIR_LOG' => 'var/log/',
+                'DIR_LOG_TIMESTAMP' => 'var/data/',
+                'LOG_SIZE_LIMIT_MB' => 5,
+                'LOG_CLEANUP_INTERVAL_DAYS' => 1,
+                'LOG_RETENTION_DAYS' => 7,
+                'MAX_LOG_FILES' => 10,
+                // Database Configuration
+                'DB_HOST' => '127.0.0.1',
+                'DB_PORT' => '3306',
+                'DB_NAME' => 'dental_clinic',
+                'DB_USER' => 'root',
+                'DB_PASS' => '',
+                'DB_TIME' => '+08:00',
+                /*
+                 * Timezones
+                 *
+                 * -05:00 = Eastern Standard Time (EST)
+                 * +08:00 = Philippine Standard Time (PST)
+                 * +09:00 = Japan Standard Time (JST)
+                 */
+                 // credentials
+                'API_GEMINI_KEY' => '', 
+                'API_GEMINI_URL' => '',
+                'OAUTH2_CLIENT_ID' => '',
+                'OAUTH2_CLIENT_SECRET' => '',
+                'OAUTH2_REFRESH_TOKEN' => '',
+                // strings
+                'COMPANY_NAME' => 'Cerillo Dental Clinic',
+            ),
+        ),
+        'ini' => array(
+            'dev' => array(
+                // Timezone
+                'date.timezone' => 'Asia/Manila', // Set to your timezone
+                // Error Reporting
+                'display_errors' => 1, // Display errors
+                'display_startup_errors' => 1, // Display startup errors
+                'error_reporting' => E_ALL, // Report all errors
+                'log_errors' => 1, // Log errors
+                // General Settings
+                'default_charset' => 'UTF-8', // Charset UTF-8
+                // Performance Settings
+                'memory_limit' => '128M', // Increase memory limit
+                'max_execution_time' => 7200, // Max execution time
+            ),
+        )
+    );
+}
