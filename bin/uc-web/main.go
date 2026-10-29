@@ -49,6 +49,7 @@ import (
 )
 
 type Config struct {
+	Core              int                 `json:"core"`
 	Server            string              `json:"server"`
 	TLSServer         string              `json:"tls_server"`
 	TLSCert           string              `json:"tls_cert"`
@@ -79,7 +80,7 @@ type Fcgi struct {
 	Script            string            `json:"script"`
 	WorkerCount       int               `json:"worker_count"`
 	WorkerConcurrency int               `json:"worker_concurrency"`
-	Bin               string            `json:"bin"`
+	Bin               []string          `json:"bin"`
 	BinArg            []string          `json:"bin_arg"`
 	BinEnv            map[string]string `json:"bin_env"`
 }
@@ -166,12 +167,11 @@ func (s *encodingLocks) acquire(key string) func() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(1)
-
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <config-file>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, `Example config file (config.json):
 {
+  "core": 2,
   "server": "0.0.0.0:8080",
   "tls_server": "0.0.0.0:8443",
   "tls_cert": "${ROOT}/server.crt",
@@ -184,8 +184,8 @@ func main() {
       "script": "${ROOT}/html/index.php",
       "worker_count": 4,
       "worker_concurrency": 1,
-      "bin": "/php-cgi",
-      "bin_arg": ["-b", "0.0.0.0:${PORT}"]
+      "bin": ["/php-cgi"],
+      "bin_arg": ["-b", "0.0.0.0:${PORT}"],
       "bin_env": {
         "PHP_FCGI_MAX_REQUESTS": "0",
         "LISTEN": "0.0.0.0:${PORT}",
@@ -237,6 +237,10 @@ func main() {
 	cfg, err := parseConfig(os.Args[1])
 	if err != nil {
 		log.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if cfg.Core > 0 {
+		runtime.GOMAXPROCS(cfg.Core)
 	}
 
 	compileRules(cfg)
@@ -1084,6 +1088,23 @@ func (s *Server) superviseFcgiWorker(fcgi string, idx int) {
 		v = strings.ReplaceAll(v, "${ROOT}", s.rootDir)
 		return v
 	}
+	var bin string
+	for _, raw := range s.cfg.Fcgi[fcgi].Bin {
+		p := expand(raw)
+		if p == "" || !filepath.IsAbs(p) {
+			log.Printf("Fcgi %s worker %d err=%v", fcgi, idx, fmt.Errorf("binary path must be absolute, got %q", p))
+			return
+		}
+		if info, statErr := os.Stat(p); statErr == nil && !info.IsDir() {
+			bin = p
+			break
+		}
+	}
+	if bin == "" {
+		log.Printf("Fcgi %s worker %d err=%v", fcgi, idx, fmt.Errorf("no bin candidate exists among %v", s.cfg.Fcgi[fcgi].Bin))
+		return
+	}
+	log.Printf("Fcgi %s worker %d: using %s", fcgi, idx, bin)
 
 	for {
 		started := time.Now()
@@ -1093,7 +1114,6 @@ func (s *Server) superviseFcgiWorker(fcgi string, idx int) {
 			env = append(env, fmt.Sprintf("%s=%s", key, expand(value)))
 		}
 
-		bin := expand(s.cfg.Fcgi[fcgi].Bin)
 		args := make([]string, 0, len(s.cfg.Fcgi[fcgi].BinArg))
 		for _, a := range s.cfg.Fcgi[fcgi].BinArg {
 			args = append(args, expand(a))
@@ -1103,23 +1123,17 @@ func (s *Server) superviseFcgiWorker(fcgi string, idx int) {
 			return
 		}
 
-		if len(bin) == 0 {
-			err = fmt.Errorf("empty binary path")
-		} else if !strings.Contains(bin, "/") {
-			err = fmt.Errorf("binary path must be absolute, got %q", bin)
-		} else {
-			cmd := exec.Command(bin, args...)
-			cmd.Stderr = os.Stderr
-			cmd.Env = env
+		cmd := exec.Command(bin, args...)
+		cmd.Stderr = os.Stderr
+		cmd.Env = env
 
-			if err = cmd.Start(); err == nil {
-				fcgiWorker.pid.Store(uint32(cmd.Process.Pid))
-				err = cmd.Wait()
-				fcgiWorker.pid.Store(0)
+		if err = cmd.Start(); err == nil {
+			fcgiWorker.pid.Store(uint32(cmd.Process.Pid))
+			err = cmd.Wait()
+			fcgiWorker.pid.Store(0)
 
-				if err != nil {
-					fcgiWorker.port.Store(49152 + (s.fcgiPortCounter.Add(1) % 16384))
-				}
+			if err != nil {
+				fcgiWorker.port.Store(49152 + (s.fcgiPortCounter.Add(1) % 16384))
 			}
 		}
 
